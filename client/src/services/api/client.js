@@ -8,7 +8,8 @@ const getHeaders = async () => {
     try {
       const token = await auth.currentUser.getIdToken();
       headers['Authorization'] = `Bearer ${token}`;
-    } catch {
+    } catch (error) {
+      console.warn('Failed to get auth token:', error);
       // Token refresh failed, continue without auth header
     }
   }

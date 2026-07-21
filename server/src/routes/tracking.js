@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { verifyAuth } = require('../middleware/auth');
 
 // In-memory tracking inbox (ephemeral, cleared after dashboard pulls)
 const trackingInbox = [];
@@ -58,14 +59,14 @@ router.get('/click/:campaignId', (req, res) => {
 });
 
 // Pull tracking events (called by dashboard)
-router.get('/events', (req, res) => {
+router.get('/events', verifyAuth, (req, res) => {
   const events = [...trackingInbox];
   trackingInbox.length = 0; // Clear after pull
   res.status(200).json({ status: 'success', events });
 });
 
 // Get events for specific campaign
-router.get('/events/:campaignId', (req, res) => {
+router.get('/events/:campaignId', verifyAuth, (req, res) => {
   const { campaignId } = req.params;
   const events = trackingInbox.filter((e) => e.campaignId === campaignId);
   res.status(200).json({ status: 'success', events });

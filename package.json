@@ -14,7 +14,7 @@
     "build": "npm run build --workspace=client",
     "start": "npm run start --workspace=server",
     "lint": "npm run lint --workspace=client",
-    "test": "echo \"No tests configured yet\""
+    "test": "npm run test --workspace=client"
   },
   "devDependencies": {
     "concurrently": "^9.2.4"

@@ -67,9 +67,11 @@ describe('apiClient', () => {
     });
 
     it('should fallback to default headers if getIdToken fails', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       mockFetchSuccess({ data: 'success' });
+      const error = new Error('Token error');
       auth.currentUser = {
-        getIdToken: vi.fn().mockRejectedValue(new Error('Token error')),
+        getIdToken: vi.fn().mockRejectedValue(error),
       };
 
       await apiClient.get('/test-auth-fail');
@@ -77,6 +79,8 @@ describe('apiClient', () => {
       expect(global.fetch).toHaveBeenCalledWith(`${MOCK_BASE_URL}/test-auth-fail`, {
         headers: { 'Content-Type': 'application/json' },
       });
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to get auth token:', error);
+      consoleSpy.mockRestore();
     });
   });
 

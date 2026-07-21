@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../../store';
 import { encryptKey, decryptKey } from '../../crypto/key-vault';
 
 export default function SettingsPage() {
-  const { openAiKey, anthropicKey, setOpenAiKey, setAnthropicKey } = useStore();
+  const { setOpenAiKey, setAnthropicKey } = useStore();
   const [localOpenAi, setLocalOpenAi] = useState('');
   const [localAnthropic, setLocalAnthropic] = useState('');
   const [saved, setSaved] = useState(false);
@@ -12,16 +12,7 @@ export default function SettingsPage() {
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [pendingKeys, setPendingKeys] = useState(null);
 
-  useEffect(() => {
-    // Try to load encrypted keys from localStorage
-    const stored = localStorage.getItem('meetflow_encrypted_keys');
-    if (stored && password) {
-      const parsed = JSON.parse(stored);
-      decryptKeys(parsed);
-    }
-  }, [password]);
-
-  const decryptKeys = async (encryptedData) => {
+  const decryptKeys = useCallback(async (encryptedData) => {
     if (!password) return;
     try {
       if (encryptedData.openAi) {
@@ -35,7 +26,16 @@ export default function SettingsPage() {
     } catch {
       // Password incorrect or data corrupted
     }
-  };
+  }, [password]);
+
+  useEffect(() => {
+    // Try to load encrypted keys from localStorage
+    const stored = localStorage.getItem('meetflow_encrypted_keys');
+    if (stored && password) {
+      const parsed = JSON.parse(stored);
+      decryptKeys(parsed);
+    }
+  }, [password, decryptKeys]);
 
   const handleSave = async (e) => {
     e.preventDefault();

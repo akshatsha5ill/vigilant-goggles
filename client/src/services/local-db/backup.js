@@ -1,7 +1,7 @@
 import { db } from './db';
 import { meetingsDB } from './meetings';
-import { transcriptsDB } from './transcripts';
-import { aiAnalysisDB } from './ai-analysis';
+
+
 import { leadsDB } from './leads';
 import { dealsDB } from './deals';
 import { emailsDB } from './emails';

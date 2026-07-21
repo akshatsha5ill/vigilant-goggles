@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Video, Users, Mail, Clock, ArrowRight } from 'lucide-react';
+import { TrendingUp, Video, Users, Mail, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
 import { db } from '../../services/local-db/db';
 

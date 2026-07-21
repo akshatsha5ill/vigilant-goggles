@@ -1,4 +1,4 @@
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { db } from '../../services/local-db/db';
 import { analyzeMeeting } from '../../services/ai/ai-service';
@@ -6,7 +6,7 @@ import { useStore } from '../../store';
 
 export default function MeetingDetailPage() {
   const { id } = useParams();
-  const navigate = useNavigate();
+
   const { openAiKey, anthropicKey } = useStore();
   const [meeting, setMeeting] = useState(null);
   const [transcript, setTranscript] = useState(null);

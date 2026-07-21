@@ -8,6 +8,10 @@ import LeadsPage from './pages/dashboard/LeadsPage';
 import SettingsPage from './pages/dashboard/SettingsPage';
 import LoginPage from './pages/auth/LoginPage';
 import ProtectedRoute from './components/layout/ProtectedRoute';
+import ZoomPanelLayout from './components/layout/ZoomPanelLayout';
+import TranscriptionView from './pages/zoom-panel/TranscriptionView';
+import SuggestionsView from './pages/zoom-panel/SuggestionsView';
+import NotesView from './pages/zoom-panel/NotesView';
 import { initAuthListener } from './services/firebase/auth';
 import './index.css';
 
@@ -26,6 +30,14 @@ function App() {
           <Route path="meetings/:id" element={<MeetingDetailPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+        </Route>
+        
+        {/* Zoom In-Meeting Panel Routes */}
+        <Route path="/zoom-panel" element={<ZoomPanelLayout />}>
+          <Route index element={<TranscriptionView />} />
+          <Route path="transcription" element={<TranscriptionView />} />
+          <Route path="suggestions" element={<SuggestionsView />} />
+          <Route path="notes" element={<NotesView />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -5,10 +5,22 @@ const BASE_URL = '/api';
 const getHeaders = async () => {
   const headers = { 'Content-Type': 'application/json' };
   if (auth.currentUser) {
-    const token = await auth.currentUser.getIdToken();
-    headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const token = await auth.currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    } catch {
+      // Token refresh failed, continue without auth header
+    }
   }
   return headers;
+};
+
+const handleResponse = async (response) => {
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `API error: ${response.statusText}`);
+  }
+  return response.json();
 };
 
 export const apiClient = {
@@ -16,10 +28,7 @@ export const apiClient = {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       headers: await getHeaders(),
     });
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-    return response.json();
+    return handleResponse(response);
   },
   post: async (endpoint, data) => {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
@@ -27,9 +36,29 @@ export const apiClient = {
       headers: await getHeaders(),
       body: JSON.stringify(data),
     });
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-    return response.json();
-  }
+    return handleResponse(response);
+  },
+  put: async (endpoint, data) => {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'PUT',
+      headers: await getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+  patch: async (endpoint, data) => {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'PATCH',
+      headers: await getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+  delete: async (endpoint) => {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: await getHeaders(),
+    });
+    return handleResponse(response);
+  },
 };

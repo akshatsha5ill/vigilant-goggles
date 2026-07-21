@@ -1,13 +1,22 @@
 {
   "name": "probable-giggle",
   "version": "1.0.0",
-  "description": "Meeting Intelligence SaaS",
+  "description": "DealForge - Meeting Intelligence SaaS",
   "private": true,
   "workspaces": [
     "client",
     "server"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\""
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "npm run dev --workspace=client",
+    "dev:server": "npm run dev --workspace=server",
+    "build": "npm run build --workspace=client",
+    "start": "npm run start --workspace=server",
+    "lint": "npm run lint --workspace=client",
+    "test": "echo \"No tests configured yet\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
   }
 }

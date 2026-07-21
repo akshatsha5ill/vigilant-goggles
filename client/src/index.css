@@ -17,6 +17,13 @@
   font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
   color: var(--text-primary);
   background-color: var(--bg-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
 body {
@@ -28,6 +35,7 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
   font-weight: 600;
+  margin: 0;
 }
 
 code, pre {
@@ -47,13 +55,57 @@ code, pre {
   font-size: 13px;
 }
 
-a {
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Focus styles */
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* Transition utilities */
+.transition-all {
   transition: all 0.2s ease;
 }
 
-a:hover {
-  background-color: var(--bg-tertiary);
-  border-radius: 8px;
-  padding: 5px;
-  margin: -5px;
+/* Button base */
+button {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Spinner animation */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+/* Stat card hover effect */
+.stat-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }

@@ -22,7 +22,7 @@ const TranscriptionView = () => {
           </div>
         ) : (
           transcripts.map((t, idx) => (
-            <div key={idx} style={{ marginBottom: '12px' }}>
+            <div key={`${idx}-${t.speaker || 'unknown'}`} style={{ marginBottom: '12px' }}>
               <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent-primary)', marginBottom: '4px', display: 'block' }}>
                 {t.speaker || 'Speaker'}
               </span>

@@ -22,7 +22,7 @@ const SuggestionsView = () => {
           </div>
         ) : (
           suggestions.map((s, idx) => (
-            <div key={idx} style={{ padding: '16px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border)', borderLeft: '4px solid var(--accent-primary)', marginBottom: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+            <div key={`${idx}-${s.title}`} style={{ padding: '16px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border)', borderLeft: '4px solid var(--accent-primary)', marginBottom: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
               <h3 style={{ fontWeight: 600, fontSize: '14px', margin: '0 0 4px 0' }}>{s.title}</h3>
               <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{s.content}</p>
             </div>

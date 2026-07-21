@@ -27,14 +27,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [meetings, leads, deals, emails] = await Promise.all([
-        db.meetings.toArray(),
-        db.leads.toArray(),
-        db.deals.toArray(),
-        db.email_campaigns.toArray(),
+      const [meetingsCount, leadsCount, dealsCount, emailsCount, recentMeetingsData] = await Promise.all([
+        db.meetings.count(),
+        db.leads.count(),
+        db.deals.count(),
+        db.email_campaigns.count(),
+        db.meetings.reverse().limit(5).toArray(),
       ]);
-      setStats({ meetings: meetings.length, leads: leads.length, deals: deals.length, emails: emails.length });
-      setRecentMeetings(meetings.slice(-5).reverse());
+      setStats({ meetings: meetingsCount, leads: leadsCount, deals: dealsCount, emails: emailsCount });
+      setRecentMeetings(recentMeetingsData);
     };
     fetchData();
   }, []);

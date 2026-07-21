@@ -1,62 +1,173 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { apiClient } from './client';
+import { auth } from '../firebase/config';
 
-// Mock the firebase config so we don't try to connect to real firebase
+// Mock the firebase config
 vi.mock('../firebase/config', () => ({
   auth: {
-    currentUser: null
-  }
+    currentUser: null,
+  },
 }));
 
-// Mock global fetch
-global.fetch = vi.fn();
-
 describe('apiClient', () => {
+  const MOCK_BASE_URL = '/api';
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    // Reset global fetch and firebase auth mock state before each test
+    global.fetch = vi.fn();
+    auth.currentUser = null;
   });
 
-  describe('handleResponse', () => {
-    it('returns parsed json on success', async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const mockFetchSuccess = (data) => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => data,
+    });
+  };
+
+  const mockFetchError = (statusText, errorData) => {
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      statusText,
+      json: async () => errorData,
+    });
+  };
+
+  describe('Headers & Auth', () => {
+    it('should send default headers when user is not authenticated', async () => {
+      mockFetchSuccess({ data: 'success' });
+      await apiClient.get('/test');
+
+      expect(global.fetch).toHaveBeenCalledWith(`${MOCK_BASE_URL}/test`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    it('should attach Authorization header when user is authenticated', async () => {
+      mockFetchSuccess({ data: 'success' });
+      const mockToken = 'mock-jwt-token';
+
+      auth.currentUser = {
+        getIdToken: vi.fn().mockResolvedValue(mockToken),
+      };
+
+      await apiClient.get('/test-auth');
+
+      expect(global.fetch).toHaveBeenCalledWith(`${MOCK_BASE_URL}/test-auth`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mockToken}`
+        },
+      });
+      expect(auth.currentUser.getIdToken).toHaveBeenCalled();
+    });
+
+    it('should fallback to default headers if getIdToken fails', async () => {
+      mockFetchSuccess({ data: 'success' });
+      auth.currentUser = {
+        getIdToken: vi.fn().mockRejectedValue(new Error('Token error')),
+      };
+
+      await apiClient.get('/test-auth-fail');
+
+      expect(global.fetch).toHaveBeenCalledWith(`${MOCK_BASE_URL}/test-auth-fail`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+  });
+
+  describe('HTTP Methods', () => {
+    it('should correctly execute a GET request', async () => {
       const mockData = { id: 1, name: 'Test' };
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockData,
-      });
+      mockFetchSuccess(mockData);
 
-      const result = await apiClient.get('/test');
+      const result = await apiClient.get('/items');
+
       expect(result).toEqual(mockData);
-      expect(global.fetch).toHaveBeenCalledWith('/api/test', {
-        headers: { 'Content-Type': 'application/json' }
+      expect(global.fetch).toHaveBeenCalledWith(`${MOCK_BASE_URL}/items`, {
+        headers: { 'Content-Type': 'application/json' },
       });
     });
 
-    it('throws error with API response message on HTTP error', async () => {
-      global.fetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: 'Bad Request',
-        json: async () => ({ error: 'Invalid input data' }),
-      });
+    it('should correctly execute a POST request', async () => {
+      const mockData = { success: true };
+      const requestData = { name: 'New Item' };
+      mockFetchSuccess(mockData);
 
-      await expect(apiClient.get('/test')).rejects.toThrow('Invalid input data');
+      const result = await apiClient.post('/items', requestData);
+
+      expect(result).toEqual(mockData);
+      expect(global.fetch).toHaveBeenCalledWith(`${MOCK_BASE_URL}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestData),
+      });
     });
 
-    it('throws error with status text if API response message is missing or fails to parse', async () => {
+    it('should correctly execute a PUT request', async () => {
+      const mockData = { success: true };
+      const requestData = { name: 'Updated Item' };
+      mockFetchSuccess(mockData);
+
+      const result = await apiClient.put('/items/1', requestData);
+
+      expect(result).toEqual(mockData);
+      expect(global.fetch).toHaveBeenCalledWith(`${MOCK_BASE_URL}/items/1`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestData),
+      });
+    });
+
+    it('should correctly execute a PATCH request', async () => {
+      const mockData = { success: true };
+      const requestData = { name: 'Patched Item' };
+      mockFetchSuccess(mockData);
+
+      const result = await apiClient.patch('/items/1', requestData);
+
+      expect(result).toEqual(mockData);
+      expect(global.fetch).toHaveBeenCalledWith(`${MOCK_BASE_URL}/items/1`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestData),
+      });
+    });
+
+    it('should correctly execute a DELETE request', async () => {
+      const mockData = { success: true };
+      mockFetchSuccess(mockData);
+
+      const result = await apiClient.delete('/items/1');
+
+      expect(result).toEqual(mockData);
+      expect(global.fetch).toHaveBeenCalledWith(`${MOCK_BASE_URL}/items/1`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should throw an error with the JSON error message if provided', async () => {
+      mockFetchError('Bad Request', { error: 'Validation failed' });
+
+      await expect(apiClient.get('/error')).rejects.toThrow('Validation failed');
+    });
+
+    it('should fallback to statusText if JSON error parsing fails', async () => {
+      // Mock fetch to simulate a response where parsing JSON fails
       global.fetch.mockResolvedValueOnce({
         ok: false,
         statusText: 'Internal Server Error',
-        // Mock json() rejecting to simulate non-JSON error response (e.g. 500 HTML page)
-        json: async () => { throw new Error('Not JSON'); },
+        json: async () => { throw new Error('Invalid JSON'); },
       });
 
-      // The code in handleResponse does:
-      // const error = await response.json().catch(() => ({ error: response.statusText }));
-      // throw new Error(error.error || `API error: ${response.statusText}`);
-      //
-      // Because error.error will be `response.statusText`,
-      // the error message will be `response.statusText` ('Internal Server Error'),
-      // not `API error: Internal Server Error`.
-      await expect(apiClient.get('/test')).rejects.toThrow('Internal Server Error');
+      await expect(apiClient.get('/error-fallback')).rejects.toThrow('Internal Server Error');
     });
   });
 });

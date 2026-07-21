@@ -1,0 +1,12 @@
+## 2024-05-24 - [Fix Information Leakage in Global Error Handler]
+**Vulnerability:** The Express global error handler was catching all unhandled errors and directly exposing both the `err.stack` to logs and the internal `err.message` in the 500 JSON response to the user.
+**Learning:** This existed because standard express boilerplates or generated code often use `res.status(500).json({ error: err.message })` for debugging, which is extremely dangerous in production as it can leak database queries, internal paths, and architectural details to an attacker.
+**Prevention:** Always ensure global error handlers return generic, safe messages like "Internal Server Error" and strip stack traces from logs or responses intended for the client.
+## 2024-05-24 - [Implement Fundamental Express Security Layers]
+**Vulnerability:** The server lacked basic HTTP security headers and rate limiting, leaving it vulnerable to common web exploits (XSS, clickjacking, etc.) and basic Denial of Service or brute-force attacks against API endpoints.
+**Learning:** Out-of-the-box Express does not provide secure default headers or request limits. These must be explicitly configured early in the middleware chain to ensure all downstream routes are protected before business logic is executed.
+**Prevention:** Make `helmet` and `express-rate-limit` a standard part of any Express initialization template, ensuring they are mounted globally or specifically on `/api` routes before any routing logic.
+## 2024-05-24 - [Implement Input Validation and JSON Payload Limits]
+**Vulnerability:** The API routes (`ai`, `email`) were accepting requests without validating the expected structure or types of the payload, making the app susceptible to malformed data causing internal server errors, or NoSQL injection if passed directly to a DB. Furthermore, the global Express JSON parser had no size limit, allowing for Denial of Service attacks via massive payload uploads.
+**Learning:** Never trust client input, even if the frontend is the only expected consumer. Stubs and mock endpoints should enforce the same validation contracts as the final implementation to catch integration issues early and prevent security oversights later.
+**Prevention:** Use schema validation (like Joi or Zod, or at least manual typeof checks) on all incoming requests. Always configure `express.json({ limit: '...' })` with a sane maximum payload size relevant to the application's actual data footprint.

@@ -1,0 +1,13 @@
+{
+  "name": "probable-giggle",
+  "version": "1.0.0",
+  "description": "Meeting Intelligence SaaS",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\""
+  }
+}

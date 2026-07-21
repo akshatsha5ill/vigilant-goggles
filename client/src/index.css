@@ -1,0 +1,59 @@
+:root {
+  --bg-primary: #0d0d0d;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #252525;
+  --bg-glass: rgba(255, 255, 255, 0.04);
+  --text-primary: #f5f0e8;
+  --text-secondary: #a39e93;
+  --text-muted: #6b6560;
+  --accent-primary: #d4a574;
+  --accent-hover: #e0b88a;
+  --accent-glow: rgba(212, 165, 116, 0.15);
+  --success: #4ecdc4;
+  --warning: #f0c929;
+  --danger: #e94560;
+  --border: rgba(255, 255, 255, 0.08);
+
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-weight: 600;
+}
+
+code, pre {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.glass-card {
+  background: var(--bg-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.data-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+}
+
+a {
+  transition: all 0.2s ease;
+}
+
+a:hover {
+  background-color: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 5px;
+  margin: -5px;
+}

@@ -32,8 +32,30 @@ router.get('/click/:campaignId', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  const fallbackUrl = `${clientUrl}/meetings`;
+  let safeRedirectUrl = fallbackUrl;
+
+  if (url) {
+    try {
+      const parsedUrl = new URL(url, clientUrl);
+      const clientOrigin = new URL(clientUrl).hostname;
+
+      const allowedDomainsEnv = process.env.ALLOWED_DOMAINS || clientOrigin;
+      const allowedDomains = allowedDomainsEnv.split(',').map(d => d.trim());
+
+      if (allowedDomains.includes(parsedUrl.hostname)) {
+        if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+          safeRedirectUrl = parsedUrl.href;
+        }
+      }
+    } catch (err) {
+      console.error('Invalid URL provided for redirect:', err);
+    }
+  }
+
   // Redirect to the target URL or dashboard
-  res.redirect(url || `${process.env.CLIENT_URL || 'http://localhost:5173'}/meetings`);
+  res.redirect(safeRedirectUrl);
 });
 
 // Pull tracking events (called by dashboard)

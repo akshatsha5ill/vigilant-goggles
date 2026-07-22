@@ -13,7 +13,6 @@ export const initZoom = async () => {
         'postMessage'
       ]
     });
-    console.log('Zoom SDK configured successfully:', configResponse);
     return configResponse;
   } catch (error) {
     console.error('Failed to configure Zoom SDK', error);

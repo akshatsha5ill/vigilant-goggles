@@ -15,17 +15,6 @@ export const useWebSocket = () => {
         reconnectionDelay: 1000,
       });
 
-      sharedSocket.on('connect', () => {
-        console.log('WebSocket connected');
-      });
-
-      sharedSocket.on('disconnect', (reason) => {
-        console.log('WebSocket disconnected:', reason);
-      });
-
-      sharedSocket.on('reconnect', (attempt) => {
-        console.log('WebSocket reconnected after', attempt, 'attempts');
-      });
     }
 
     socketRef.current = sharedSocket;

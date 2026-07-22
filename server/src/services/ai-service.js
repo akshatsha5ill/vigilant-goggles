@@ -3,9 +3,11 @@ const { Anthropic } = require('@anthropic-ai/sdk');
 
 const getClient = (model, apiKey) => {
   if (model === 'openai') {
-    return { client: new OpenAI({ apiKey }), provider: 'openai' };
+    const config = process.env.NODE_ENV === 'test' ? { apiKey: 'test-key', baseURL: 'http://localhost' } : { apiKey };
+    return { client: new OpenAI(config), provider: 'openai' };
   } else if (model === 'anthropic') {
-    return { client: new Anthropic({ apiKey }), provider: 'anthropic' };
+    const config = process.env.NODE_ENV === 'test' ? { apiKey: 'test-key', baseURL: 'http://localhost' } : { apiKey };
+    return { client: new Anthropic(config), provider: 'anthropic' };
   }
   throw new Error('Unsupported AI model');
 };
@@ -97,4 +99,4 @@ const analyzeSentiment = async (transcript, model, apiKey) => {
   }
 };
 
-module.exports = { generateSummary, generateActionItems, analyzeSentiment };
+module.exports = { getClient, generateSummary, generateActionItems, analyzeSentiment };

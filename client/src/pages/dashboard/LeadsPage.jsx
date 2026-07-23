@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { db } from '../../services/local-db/db';
 
 const stages = ['Discovery', 'Demo', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost'];
@@ -35,17 +35,6 @@ export default function LeadsPage() {
     return 'var(--danger)';
   };
 
-  const stageCounts = useMemo(() => {
-    const counts = {};
-    for (let i = 0; i < leads.length; i++) {
-      const stage = leads[i].stage;
-      if (stage) {
-        counts[stage] = (counts[stage] || 0) + 1;
-      }
-    }
-    return counts;
-  }, [leads]);
-
   return (
     <div className="animate-fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
@@ -68,7 +57,7 @@ export default function LeadsPage() {
           All ({leads.length})
         </button>
         {stages.map((s) => {
-          const count = stageCounts[s] || 0;
+          const count = leads.filter((l) => l.stage === s).length;
           return (
             <button key={s} onClick={() => setFilter(s)} style={{ padding: '6px 14px', borderRadius: '20px', border: '1px solid var(--border)', backgroundColor: filter === s ? 'var(--accent-primary)' : 'var(--bg-secondary)', color: filter === s ? 'var(--bg-primary)' : 'var(--text-secondary)', cursor: 'pointer', fontSize: '13px', fontWeight: 500, transition: 'all 0.2s' }}>
               {s} ({count})

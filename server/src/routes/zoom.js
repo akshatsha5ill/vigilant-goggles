@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const bufferService = require('../services/buffer-service');
 
 // Zoom OAuth callback
@@ -16,6 +17,39 @@ router.get('/oauth/callback', (req, res) => {
 // Zoom webhook handler
 router.post('/webhook', (req, res) => {
   const { event, payload } = req.body;
+
+  const secret = process.env.ZOOM_WEBHOOK_SECRET_TOKEN;
+  if (!secret) {
+     return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  // Verify signature
+  const zoomSignature = req.headers['x-zm-signature'];
+  const zoomTimestamp = req.headers['x-zm-request-timestamp'];
+
+  if (!zoomSignature || !zoomTimestamp) {
+    return res.status(401).json({ error: 'Unauthorized: Missing signature' });
+  }
+
+  const message = `v0:${zoomTimestamp}:${JSON.stringify(req.body)}`;
+  const hashForVerify = crypto.createHmac('sha256', secret).update(message).digest('hex');
+  const signature = `v0=${hashForVerify}`;
+
+  const bufSig = Buffer.from(signature);
+  const bufZoom = Buffer.from(zoomSignature);
+
+  if (bufSig.length !== bufZoom.length || !crypto.timingSafeEqual(bufSig, bufZoom)) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid signature' });
+  }
+
+  // Zoom webhook validation
+  if (event === 'endpoint.url_validation') {
+    const hashForValidate = crypto.createHmac('sha256', secret).update(payload.plainToken).digest('hex');
+    return res.status(200).json({
+      plainToken: payload.plainToken,
+      encryptedToken: hashForValidate
+    });
+  }
 
   if (event === 'meeting.started') {
     const meetingId = payload?.object?.id;

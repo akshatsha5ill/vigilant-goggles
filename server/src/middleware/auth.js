@@ -17,7 +17,8 @@ const verifyAuth = async (req, res, next) => {
     req.user = decodedToken;
     next();
   } catch (error) {
-    console.error('Token verification failed:', error.message);
+    const log = require('../utils/logger');
+    log.error('Token verification failed', { error: error.message });
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
 };

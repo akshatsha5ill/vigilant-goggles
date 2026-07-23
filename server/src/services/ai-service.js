@@ -1,6 +1,11 @@
 const OpenAI = require('openai');
 const { Anthropic } = require('@anthropic-ai/sdk');
 
+const AI_MODELS = {
+  openai: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+  anthropic: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+};
+
 const getClient = (model, apiKey) => {
   if (model === 'openai') {
     const config = process.env.NODE_ENV === 'test' ? { apiKey: 'test-key', baseURL: 'http://localhost' } : { apiKey };
@@ -18,7 +23,7 @@ const generateSummary = async (transcript, model, apiKey) => {
 
   if (provider === 'openai') {
     const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: AI_MODELS.openai,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: transcript }
@@ -27,7 +32,7 @@ const generateSummary = async (transcript, model, apiKey) => {
     return response.choices[0].message.content;
   }
   const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: AI_MODELS.anthropic,
     max_tokens: 1024,
     system: systemPrompt,
     messages: [{ role: "user", content: transcript }],
@@ -42,7 +47,7 @@ const generateActionItems = async (transcript, model, apiKey) => {
   let raw;
   if (provider === 'openai') {
     const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: AI_MODELS.openai,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: transcript }
@@ -51,7 +56,7 @@ const generateActionItems = async (transcript, model, apiKey) => {
     raw = response.choices[0].message.content;
   } else {
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: AI_MODELS.anthropic,
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: "user", content: transcript }],
@@ -74,7 +79,7 @@ const analyzeSentiment = async (transcript, model, apiKey) => {
   let raw;
   if (provider === 'openai') {
     const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: AI_MODELS.openai,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: transcript }
@@ -83,7 +88,7 @@ const analyzeSentiment = async (transcript, model, apiKey) => {
     raw = response.choices[0].message.content;
   } else {
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: AI_MODELS.anthropic,
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: "user", content: transcript }],

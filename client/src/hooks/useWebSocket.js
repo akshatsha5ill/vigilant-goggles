@@ -3,6 +3,13 @@ import { io } from 'socket.io-client';
 
 let sharedSocket = null;
 
+export const disconnectSocket = () => {
+  if (sharedSocket) {
+    sharedSocket.disconnect();
+    sharedSocket = null;
+  }
+};
+
 export const useWebSocket = () => {
   const socketRef = useRef(null);
 
@@ -42,5 +49,9 @@ export const useWebSocket = () => {
     };
   }, []);
 
-  return { emit, subscribe, socket: socketRef.current };
+  const disconnect = useCallback(() => {
+    disconnectSocket();
+  }, []);
+
+  return { emit, subscribe, disconnect, socket: socketRef.current };
 };

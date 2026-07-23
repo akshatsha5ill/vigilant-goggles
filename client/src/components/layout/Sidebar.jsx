@@ -1,17 +1,21 @@
 import { NavLink } from 'react-router-dom';
-import { Home, Video, Users, Settings } from 'lucide-react';
+import { Home, Video, Users, Settings, BarChart3, Mail, GitBranch, CreditCard } from 'lucide-react';
 
 const navItems = [
   { to: '/', icon: Home, label: 'Dashboard', end: true },
   { to: '/meetings', icon: Video, label: 'Meetings' },
   { to: '/leads', icon: Users, label: 'Leads' },
+  { to: '/pipeline', icon: GitBranch, label: 'Pipeline' },
+  { to: '/emails', icon: Mail, label: 'Emails' },
+  { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { to: '/billing', icon: CreditCard, label: 'Billing' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 export default function Sidebar() {
   return (
     <div style={{ width: '250px', height: '100vh', padding: '20px', backgroundColor: 'var(--bg-glass)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-      <h2 style={{ color: 'var(--accent-primary)', marginBottom: '30px', fontSize: '22px', fontWeight: 700, letterSpacing: '-0.5px' }}>MeetFlow</h2>
+      <h2 style={{ color: 'var(--accent-primary)', marginBottom: '30px', fontSize: '22px', fontWeight: 700, letterSpacing: '-0.5px' }}>DealForge</h2>
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
         {navItems.map(({ to, icon: Icon, label, end }) => (
           <NavLink

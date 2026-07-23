@@ -1,6 +1,6 @@
 import Dexie from 'dexie';
 
-export const db = new Dexie('MeetFlowDB');
+export const db = new Dexie('DealForgeDB');
 
 db.version(1).stores({
   meetings: 'id, zoomMeetingId, title, startTime, endTime, duration, status',

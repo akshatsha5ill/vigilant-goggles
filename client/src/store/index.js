@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { disconnectSocket } from '../hooks/useWebSocket';
 
 export const useStore = create((set) => ({
   // Auth
@@ -7,7 +8,10 @@ export const useStore = create((set) => ({
   isAuthReady: false,
   setUser: (user) => set({ user, isAuthenticated: !!user }),
   setAuthReady: (status) => set({ isAuthReady: status }),
-  logout: () => set({ user: null, isAuthenticated: false, openAiKey: '', anthropicKey: '' }),
+  logout: () => {
+    disconnectSocket();
+    set({ user: null, isAuthenticated: false, openAiKey: '', anthropicKey: '' });
+  },
 
   // API Keys (decrypted, in-memory only)
   openAiKey: '',

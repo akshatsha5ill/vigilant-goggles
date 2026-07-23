@@ -1,0 +1,479 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "DealForge API",
+    "description": "AI-powered meeting intelligence and sales CRM API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    { "url": "/api", "description": "API server" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Firebase JWT"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "uptime": { "type": "number" }
+        }
+      },
+      "AnalysisResult": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "analysis": {
+            "type": "object",
+            "properties": {
+              "summary": { "type": "string" },
+              "actionItems": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "task": { "type": "string" },
+                    "assignee": { "type": "string" }
+                  }
+                }
+              },
+              "sentiment": {
+                "type": "object",
+                "properties": {
+                  "overall": { "type": "string", "enum": ["positive", "negative", "neutral"] },
+                  "score": { "type": "integer" },
+                  "notes": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "EmailDraft": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "draft": {
+            "type": "object",
+            "properties": {
+              "subject": { "type": "string" },
+              "body": { "type": "string" }
+            }
+          }
+        }
+      },
+      "TrackingEvent": {
+        "type": "object",
+        "properties": {
+          "campaignId": { "type": "string" },
+          "event": { "type": "string", "enum": ["open", "click"] },
+          "url": { "type": "string" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "BufferData": {
+        "type": "object",
+        "properties": {
+          "transcript": { "type": "object", "nullable": true },
+          "notes": { "type": "object", "nullable": true },
+          "meeting": { "type": "object", "nullable": true }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "API status",
+        "responses": {
+          "200": {
+            "description": "API is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "version": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/HealthResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/auth/health": {
+      "get": {
+        "summary": "Auth service health check",
+        "responses": {
+          "200": { "description": "Auth service healthy" }
+        }
+      }
+    },
+    "/auth/dev-token": {
+      "post": {
+        "summary": "Get dev-only auth token (disabled in production)",
+        "responses": {
+          "200": { "description": "Dev mode response" },
+          "404": { "description": "Not available in production" }
+        }
+      }
+    },
+    "/zoom/oauth/callback": {
+      "get": {
+        "summary": "Zoom OAuth callback",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Authorization code from Zoom"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Token exchange successful" },
+          "400": { "description": "Missing authorization code" },
+          "500": { "description": "Token exchange failed" }
+        }
+      }
+    },
+    "/zoom/webhook": {
+      "post": {
+        "summary": "Zoom webhook handler",
+        "description": "Receives Zoom meeting events (started, ended) and URL validation",
+        "responses": {
+          "200": { "description": "Webhook processed" },
+          "401": { "description": "Invalid signature" },
+          "500": { "description": "Server configuration error" }
+        }
+      }
+    },
+    "/zoom/transcription": {
+      "post": {
+        "summary": "Store transcription segment",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["meetingId", "segment"],
+                "properties": {
+                  "meetingId": { "type": "string" },
+                  "segment": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Segment stored and broadcast" },
+          "400": { "description": "Missing required fields" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/zoom/notes": {
+      "post": {
+        "summary": "Store quick notes from Zoom panel",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["meetingId", "note"],
+                "properties": {
+                  "meetingId": { "type": "string" },
+                  "note": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Note stored" },
+          "400": { "description": "Missing required fields" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/zoom/buffer/{meetingId}": {
+      "get": {
+        "summary": "Pull buffered meeting data",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "meetingId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Buffered data",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/BufferData" } }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      },
+      "delete": {
+        "summary": "Clear buffered meeting data",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "meetingId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Buffer cleared" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/ai/analyze": {
+      "post": {
+        "summary": "Analyze meeting transcript with AI",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["transcript", "meetingId"],
+                "properties": {
+                  "transcript": { "type": "string" },
+                  "meetingId": { "type": "string" },
+                  "apiKey": { "type": "string" },
+                  "model": { "type": "string", "enum": ["openai", "anthropic"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Analysis complete",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AnalysisResult" } }
+            }
+          },
+          "400": { "description": "Invalid input" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/email/send": {
+      "post": {
+        "summary": "Send email via Resend",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["to", "subject", "body"],
+                "properties": {
+                  "to": { "type": "string", "format": "email" },
+                  "subject": { "type": "string" },
+                  "body": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Email sent" },
+          "400": { "description": "Invalid input" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/email/draft": {
+      "post": {
+        "summary": "Generate AI email draft",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["transcript"],
+                "properties": {
+                  "transcript": { "type": "string" },
+                  "leadContext": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string" },
+                      "role": { "type": "string" },
+                      "company": { "type": "string" }
+                    }
+                  },
+                  "apiKey": { "type": "string" },
+                  "model": { "type": "string", "enum": ["openai", "anthropic"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Draft generated",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/EmailDraft" } }
+            }
+          },
+          "400": { "description": "Invalid input" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/tracking/open/{campaignId}": {
+      "get": {
+        "summary": "Email open tracking pixel",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "1x1 tracking pixel",
+            "content": { "image/gif": {} }
+          }
+        }
+      }
+    },
+    "/tracking/click/{campaignId}": {
+      "get": {
+        "summary": "Email click tracking redirect",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "url",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "302": { "description": "Redirect to target URL" }
+        }
+      }
+    },
+    "/tracking/events": {
+      "get": {
+        "summary": "Pull tracking events for authenticated user",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Tracking events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "events": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/TrackingEvent" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/tracking/events/{campaignId}": {
+      "get": {
+        "summary": "Get events for specific campaign",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Campaign tracking events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "events": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/TrackingEvent" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    }
+  }
+}

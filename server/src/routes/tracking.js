@@ -2,51 +2,84 @@ const express = require('express');
 const router = express.Router();
 const { verifyAuth } = require('../middleware/auth');
 
-// In-memory tracking inbox (ephemeral, cleared after dashboard pulls)
-const trackingInbox = [];
+const trackingInbox = new Map();
+const MAX_EVENTS_PER_USER = 500;
+const INBOX_TTL = 24 * 60 * 60 * 1000;
+const inboxTimestamps = new Map();
 
-// Tracking pixel endpoint (image response)
+const storeEvent = (userId, event) => {
+  if (!userId) return;
+  if (!trackingInbox.has(userId)) trackingInbox.set(userId, []);
+  const events = trackingInbox.get(userId);
+  events.push(event);
+  if (events.length > MAX_EVENTS_PER_USER) {
+    events.splice(0, events.length - MAX_EVENTS_PER_USER);
+  }
+  inboxTimestamps.set(userId, Date.now());
+};
+
+const cleanupInbox = () => {
+  const now = Date.now();
+  for (const [userId, timestamp] of inboxTimestamps.entries()) {
+    if (now - timestamp > INBOX_TTL) {
+      trackingInbox.delete(userId);
+      inboxTimestamps.delete(userId);
+    }
+  }
+};
+setInterval(cleanupInbox, 60 * 60 * 1000);
+
 router.get('/open/:campaignId', (req, res) => {
   const { campaignId } = req.params;
-  trackingInbox.push({
+  const { uid } = req.query;
+
+  if (!uid || uid.length > 128) {
+    const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+    res.writeHead(200, { 'Content-Type': 'image/gif', 'Content-Length': pixel.length });
+    return res.end(pixel);
+  }
+
+  storeEvent(uid, {
     campaignId,
     event: 'open',
     timestamp: new Date().toISOString(),
   });
 
-  // Return 1x1 transparent GIF
   const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
   res.writeHead(200, { 'Content-Type': 'image/gif', 'Content-Length': pixel.length });
   res.end(pixel);
 });
 
-// Click redirect endpoint
 router.get('/click/:campaignId', (req, res) => {
   const { campaignId } = req.params;
-  const { url } = req.query;
+  const { url, uid } = req.query;
 
-  trackingInbox.push({
-    campaignId,
-    event: 'click',
-    url: url || '',
-    timestamp: new Date().toISOString(),
-  });
+  if (uid && uid.length <= 128) {
+    storeEvent(uid, {
+      campaignId,
+      event: 'click',
+      url: url || '',
+      timestamp: new Date().toISOString(),
+    });
+  }
 
-  // Redirect to the target URL or dashboard
   res.redirect(url || `${process.env.CLIENT_URL || 'http://localhost:5173'}/meetings`);
 });
 
-// Pull tracking events (called by dashboard)
+// Pull tracking events for authenticated user
 router.get('/events', verifyAuth, (req, res) => {
-  const events = [...trackingInbox];
-  trackingInbox.length = 0; // Clear after pull
+  const userId = req.user.uid;
+  const events = trackingInbox.get(userId) || [];
+  trackingInbox.delete(userId);
   res.status(200).json({ status: 'success', events });
 });
 
-// Get events for specific campaign
+// Get events for specific campaign (authenticated user only)
 router.get('/events/:campaignId', verifyAuth, (req, res) => {
+  const userId = req.user.uid;
   const { campaignId } = req.params;
-  const events = trackingInbox.filter((e) => e.campaignId === campaignId);
+  const allEvents = trackingInbox.get(userId) || [];
+  const events = allEvents.filter((e) => e.campaignId === campaignId);
   res.status(200).json({ status: 'success', events });
 });
 

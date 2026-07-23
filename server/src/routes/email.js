@@ -29,19 +29,17 @@ router.post('/draft', async (req, res, next) => {
       return res.status(400).json({ error: 'transcript is required' });
     }
 
-    if (apiKey === 'test') {
-      return res.status(200).json({
-        status: 'success',
-        draft: {
-          subject: 'Follow-up from our meeting',
-          body: `<p>Hi ${leadContext?.name || 'there'},</p><p>Thank you for taking the time to meet with us today. I wanted to follow up on the key points we discussed...</p><p>Best regards</p>`
-        }
-      });
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required. Configure your AI API keys in Settings.' });
     }
 
     const OpenAI = require('openai');
     const { Anthropic } = require('@anthropic-ai/sdk');
     const effectiveModel = model || 'openai';
+    const aiModels = {
+      openai: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      anthropic: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+    };
 
     const leadInfo = leadContext ? `\nLead: ${leadContext.name} (${leadContext.role}) at ${leadContext.company}` : '';
     const prompt = `Write a professional follow-up email based on this meeting transcript:${leadInfo}\n\nTranscript:\n${transcript}\n\nReturn ONLY a JSON object with "subject" and "body" (HTML) fields.`;
@@ -50,14 +48,14 @@ router.post('/draft', async (req, res, next) => {
     if (effectiveModel === 'openai') {
       const openai = new OpenAI({ apiKey });
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: aiModels.openai,
         messages: [{ role: 'user', content: prompt }],
       });
       raw = response.choices[0].message.content;
     } else {
       const anthropic = new Anthropic({ apiKey });
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: aiModels.anthropic,
         max_tokens: 1024,
         messages: [{ role: 'user', content: prompt }],
       });

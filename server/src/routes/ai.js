@@ -9,19 +9,8 @@ router.post('/analyze', async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid input. Transcript and meetingId must be strings.' });
     }
 
-    if (apiKey === 'test') {
-      return res.status(200).json({
-        status: "success",
-        analysis: {
-          summary: "This was a productive meeting discussing key initiatives and next steps. The team aligned on priorities and identified clear action items for follow-up.",
-          actionItems: [
-            { task: 'Follow up on project timeline', assignee: 'Project Manager' },
-            { task: 'Prepare budget proposal', assignee: 'Finance Lead' },
-            { task: 'Schedule follow-up meeting', assignee: 'Sales Rep' },
-          ],
-          sentiment: { overall: 'positive', score: 78, notes: 'Collaborative and productive discussion with clear outcomes.' },
-        }
-      });
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required. Configure your AI API keys in Settings.' });
     }
 
     const effectiveModel = model || 'openai';

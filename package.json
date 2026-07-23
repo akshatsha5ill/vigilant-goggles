@@ -1,7 +1,7 @@
 {
-  "name": "probable-giggle",
+  "name": "dealforge",
   "version": "1.0.0",
-  "description": "DealForge - Meeting Intelligence SaaS",
+  "description": "DealForge - AI Meeting Intelligence SaaS",
   "private": true,
   "workspaces": [
     "client",
@@ -14,7 +14,9 @@
     "build": "npm run build --workspace=client",
     "start": "npm run start --workspace=server",
     "lint": "npm run lint --workspace=client",
-    "test": "npm run test --workspace=client"
+    "test": "npm run test --workspace=client && npm run test --workspace=server",
+    "test:client": "npm run test --workspace=client",
+    "test:server": "npm run test --workspace=server"
   },
   "devDependencies": {
     "concurrently": "^9.2.4"

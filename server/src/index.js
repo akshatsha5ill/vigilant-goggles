@@ -3,30 +3,49 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/auth');
 const zoomRoutes = require('./routes/zoom');
 const aiRoutes = require('./routes/ai');
 const emailRoutes = require('./routes/email');
 const trackingRoutes = require('./routes/tracking');
+const billingRoutes = require('./routes/billing');
 const { verifyAuth } = require('./middleware/auth');
+const requestId = require('./middleware/requestId');
+const sanitize = require('./middleware/sanitize');
 const bufferService = require('./services/buffer-service');
+const log = require('./utils/logger');
+
+const isProd = process.env.NODE_ENV === 'production';
+const requiredInProd = ['CLIENT_URL', 'ZOOM_CLIENT_ID', 'ZOOM_CLIENT_SECRET', 'RESEND_API_KEY'];
+if (isProd) {
+  const missing = requiredInProd.filter((k) => !process.env[k]);
+  if (missing.length) {
+    log.error(`Missing required environment variables: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+}
 
 const app = express();
 const server = http.createServer(app);
+
+const allowedOrigin = isProd
+  ? process.env.CLIENT_URL
+  : (process.env.CLIENT_URL || true);
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || '*',
+    origin: allowedOrigin,
     methods: ['GET', 'POST']
   }
 });
 
 const port = process.env.PORT || 3000;
 
-// Security headers
 app.use(helmet());
+app.use(requestId);
 
-// Rate limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -36,67 +55,120 @@ const apiLimiter = rateLimit({
 });
 
 app.use(cors({
-  origin: process.env.CLIENT_URL || '*',
+  origin: allowedOrigin,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+app.use(compression());
+
+// Stripe webhook needs raw body before JSON parser
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json({ limit: '100kb' }));
+app.use(sanitize);
 app.use('/api', apiLimiter);
 
-// Public routes
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'AI rate limit exceeded. Please wait before making another request.' }
+});
+
+const emailLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Email rate limit exceeded. Please wait before sending another email.' }
+});
+
+const requestLogger = (req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    log.info('Request', {
+      method: req.method,
+      url: req.originalUrl,
+      status: res.statusCode,
+      duration: `${duration}ms`,
+      requestId: req.requestId,
+    });
+  });
+  next();
+};
+app.use(requestLogger);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/zoom', zoomRoutes);
 app.use('/api/tracking', trackingRoutes);
+app.use('/api/billing', billingRoutes);
 
-// Protected routes
-app.use('/api/ai', verifyAuth, aiRoutes);
-app.use('/api/email', verifyAuth, emailRoutes);
+app.use('/api/ai', verifyAuth, aiLimiter, aiRoutes);
+app.use('/api/email', verifyAuth, emailLimiter, emailRoutes);
 
-// Health check
 app.get('/api', (req, res) => {
   res.status(200).json({ message: 'API is running', version: '1.0.0' });
 });
 
-// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'healthy', uptime: process.uptime() });
 });
 
-// Global error handler
+try {
+  const swaggerDocument = require('./swagger.json');
+  app.get('/api/docs', (req, res) => {
+    res.json(swaggerDocument);
+  });
+} catch (e) {
+  // Swagger doc not generated yet
+}
+
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err.message);
+  log.error('Unhandled error', { message: err.message, requestId: req.requestId });
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
-// Store io instance on app for route access
 app.set('io', io);
 
-// WebSocket connections
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  if (!token) {
+    log.warn('Socket connection rejected: no token', { socketId: socket.id });
+    socket.disconnect(true);
+    return;
+  }
 
-  // Join a meeting room for targeted broadcasts
-  socket.on('join_meeting', (meetingId) => {
-    socket.join(`meeting:${meetingId}`);
-    console.log(`Socket ${socket.id} joined meeting:${meetingId}`);
-  });
+  const admin = require('./services/firebase-admin');
+  admin.auth().verifyIdToken(token)
+    .then((decodedToken) => {
+      socket.user = decodedToken;
+      log.info('Client connected', { socketId: socket.id, uid: decodedToken.uid });
 
-  // Handle quick notes from Zoom panel
-  socket.on('save_note', (note) => {
-    console.log('Note received:', note);
-    // Could buffer here or forward to a specific meeting room
-  });
+      socket.on('join_meeting', (meetingId) => {
+        socket.join(`meeting:${meetingId}`);
+        log.info('Socket joined meeting room', { socketId: socket.id, meetingId, uid: decodedToken.uid });
+      });
 
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
-  });
+      socket.on('save_note', (note) => {
+        log.info('Note received via WS', { socketId: socket.id, uid: decodedToken.uid });
+      });
+
+      socket.on('disconnect', () => {
+        log.info('Client disconnected', { socketId: socket.id, uid: decodedToken.uid });
+      });
+    })
+    .catch((err) => {
+      log.warn('Socket authentication failed', { socketId: socket.id, error: err.message });
+      socket.disconnect(true);
+    });
 });
 
-// Graceful shutdown
 const gracefulShutdown = (signal) => {
-  console.log(`${signal} received. Shutting down gracefully...`);
+  log.info(`${signal} received. Shutting down gracefully...`);
   server.close(() => {
-    console.log('Server closed.');
+    log.info('Server closed.');
     process.exit(0);
   });
   setTimeout(() => process.exit(1), 5000);
@@ -106,7 +178,7 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 server.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+  log.info(`Server listening on port ${port}`);
 });
 
 module.exports = { app, server, io };

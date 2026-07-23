@@ -4,26 +4,33 @@ import { TrendingUp, Video, Users, Mail, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
 import { db } from '../../services/local-db/db';
 
-const meetingTrendData = [
-  { name: 'Mon', meetings: 4 },
-  { name: 'Tue', meetings: 7 },
-  { name: 'Wed', meetings: 5 },
-  { name: 'Thu', meetings: 9 },
-  { name: 'Fri', meetings: 3 },
-];
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const pipelineData = [
-  { name: 'Discovery', value: 45000 },
-  { name: 'Demo', value: 32000 },
-  { name: 'Proposal', value: 28000 },
-  { name: 'Negotiation', value: 15000 },
-  { name: 'Closed', value: 62000 },
-];
+function buildMeetingTrendData(meetings) {
+  const counts = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0 };
+  for (const m of meetings) {
+    const d = new Date(m.startTime);
+    const day = DAY_NAMES[d.getDay()];
+    if (day in counts) counts[day]++;
+  }
+  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((name) => ({ name, meetings: counts[name] }));
+}
+
+function buildPipelineData(deals) {
+  const stages = {};
+  for (const d of deals) {
+    const key = d.stage || 'Unknown';
+    stages[key] = (stages[key] || 0) + (d.value || 0);
+  }
+  return Object.entries(stages).map(([name, value]) => ({ name, value }));
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [stats, setStats] = useState({ meetings: 0, leads: 0, deals: 0, emails: 0 });
   const [recentMeetings, setRecentMeetings] = useState([]);
+  const [meetingTrendData, setMeetingTrendData] = useState([]);
+  const [pipelineData, setPipelineData] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -35,6 +42,8 @@ export default function DashboardPage() {
       ]);
       setStats({ meetings: meetings.length, leads: leads.length, deals: deals.length, emails: emails.length });
       setRecentMeetings(meetings.slice(-5).reverse());
+      setMeetingTrendData(buildMeetingTrendData(meetings));
+      setPipelineData(buildPipelineData(deals));
     };
     fetchData();
   }, []);

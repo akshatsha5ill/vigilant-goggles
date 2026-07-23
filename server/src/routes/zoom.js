@@ -1,17 +1,65 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const https = require('https');
 const bufferService = require('../services/buffer-service');
+const { verifyAuth } = require('../middleware/auth');
 
-// Zoom OAuth callback
-router.get('/oauth/callback', (req, res) => {
-  const { code, state } = req.query;
+// Zoom OAuth callback — exchange code for tokens
+router.get('/oauth/callback', async (req, res) => {
+  const { code } = req.query;
   if (!code) {
     return res.status(400).json({ error: 'Missing authorization code' });
   }
-  // In production: exchange code for access token via Zoom API
-  // For now, redirect to the client dashboard
-  res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/meetings?zoom=connected`);
+
+  const clientId = process.env.ZOOM_CLIENT_ID;
+  const clientSecret = process.env.ZOOM_CLIENT_SECRET;
+  const redirectUri = process.env.ZOOM_REDIRECT_URI || `${process.env.CLIENT_URL || 'http://localhost:3000'}/api/zoom/oauth/callback`;
+
+  if (!clientId || !clientSecret) {
+    return res.status(500).json({ error: 'Zoom OAuth not configured' });
+  }
+
+  try {
+    const tokenRes = await new Promise((resolve, reject) => {
+      const creds = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+      const body = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+      }).toString();
+
+      const req = https.request('https://zoom.us/oauth/token', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${creds}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      }, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try { resolve(JSON.parse(data)); }
+          catch { reject(new Error('Failed to parse token response')); }
+        });
+      });
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+
+    if (tokenRes.error) {
+      return res.status(400).json({ error: tokenRes.reason || tokenRes.error });
+    }
+
+    res.json({
+      status: 'success',
+      expires_in: tokenRes.expires_in,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Token exchange failed' });
+  }
 });
 
 // Zoom webhook handler
@@ -73,8 +121,8 @@ router.post('/webhook', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Store transcription data in buffer (called by Zoom RTMS or caption relay)
-router.post('/transcription', (req, res) => {
+// Store transcription data in buffer (called by Zoom RTMS or caption relay) — auth required
+router.post('/transcription', verifyAuth, (req, res) => {
   const { meetingId, segment } = req.body;
   if (!meetingId || !segment) {
     return res.status(400).json({ error: 'meetingId and segment are required' });
@@ -94,8 +142,8 @@ router.post('/transcription', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Store quick notes from Zoom panel
-router.post('/notes', (req, res) => {
+// Store quick notes from Zoom panel — auth required
+router.post('/notes', verifyAuth, (req, res) => {
   const { meetingId, note } = req.body;
   if (!meetingId || !note) {
     return res.status(400).json({ error: 'meetingId and note are required' });
@@ -110,7 +158,7 @@ router.post('/notes', (req, res) => {
 });
 
 // Pull buffered data for a meeting (called by dashboard on connect)
-router.get('/buffer/:meetingId', (req, res) => {
+router.get('/buffer/:meetingId', verifyAuth, (req, res) => {
   const { meetingId } = req.params;
   const transcript = bufferService.get(`transcript:${meetingId}`);
   const notes = bufferService.get(`notes:${meetingId}`);
@@ -123,8 +171,8 @@ router.get('/buffer/:meetingId', (req, res) => {
   });
 });
 
-// Clear buffer after dashboard has pulled data
-router.delete('/buffer/:meetingId', (req, res) => {
+// Clear buffer after dashboard has pulled data — auth required
+router.delete('/buffer/:meetingId', verifyAuth, (req, res) => {
   const { meetingId } = req.params;
   bufferService.buffer.delete(`transcript:${meetingId}`);
   bufferService.buffer.delete(`notes:${meetingId}`);

@@ -30,7 +30,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     // Try to load encrypted keys from localStorage
-    const stored = localStorage.getItem('meetflow_encrypted_keys');
+    const stored = localStorage.getItem('dealforge_encrypted_keys');
     if (stored && password) {
       const parsed = JSON.parse(stored);
       decryptKeys(parsed);
@@ -54,7 +54,7 @@ export default function SettingsPage() {
       if (pendingKeys.anthropic) {
         encrypted.anthropic = await encryptKey(pendingKeys.anthropic, password);
       }
-      localStorage.setItem('meetflow_encrypted_keys', JSON.stringify(encrypted));
+      localStorage.setItem('dealforge_encrypted_keys', JSON.stringify(encrypted));
 
       setOpenAiKey(pendingKeys.openAi);
       setAnthropicKey(pendingKeys.anthropic);
@@ -74,7 +74,7 @@ export default function SettingsPage() {
     if (!password) return;
     setLoading(true);
     try {
-      const stored = localStorage.getItem('meetflow_encrypted_keys');
+      const stored = localStorage.getItem('dealforge_encrypted_keys');
       if (stored) {
         const parsed = JSON.parse(stored);
         await decryptKeys(parsed);

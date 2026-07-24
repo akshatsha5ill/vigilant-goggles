@@ -3,8 +3,10 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import { useStore } from '../../store';
 import { AlertCircle, X } from 'lucide-react';
+import { useAutoBackup } from '../../hooks/useAutoBackup';
 
 export default function DashboardLayout() {
+  useAutoBackup();
   const error = useStore((state) => state.error);
   const clearError = useStore((state) => state.clearError);
   return (

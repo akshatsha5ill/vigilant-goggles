@@ -51,6 +51,7 @@ export interface Lead {
   role: string;
   score: number;
   stage: string;
+  reasoning?: string;
   tags?: string[];
   customFields?: Record<string, any>;
   createdAt: string;
@@ -74,6 +75,7 @@ export interface Deal {
   notes: DealNote[];
   createdAt: string;
   updatedAt: string;
+  order?: number;
 }
 
 export interface EmailSequenceStep {

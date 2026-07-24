@@ -120,13 +120,15 @@ Based on the `README.md` and codebase analysis, the project is largely complete 
 *   Drag-and-drop Pipeline UI.
 *   Basic Email composition and Resend integration.
 *   Stripe billing integration.
+*   Auto lead creation from meeting participants.
+*   AI lead scoring integration.
+*   Drip Campaigns functionality and management UI.
+*   Data Durability Enhancements: `navigator.storage.persist()`, auto-backup scheduling to JSON, and manual export/import UIs are fully implemented.
+*   Open/click tracking integration in dashboard (polling events from tracking inbox).
+*   Zoom Marketplace Submission: Added compliance pages (Privacy Policy, Terms of Service, Support) and `/deauth` endpoint.
 
 ### Pending / Needs Implementation (as per README 'Known Issues')
-*   **Auto Lead Creation:** The logic to automatically parse meeting participants and create Dexie records for leads appears missing or incomplete in the flow.
-*   **AI Lead Scoring:** Mentioned in the UI but backend integration for automated scoring during/after meetings needs wiring.
 *   **Drip Campaigns:** The email page supports basic sending, but multi-step automated sequences are not yet built.
-*   **Data Durability Enhancements:** While Dexie is implemented, features like `navigator.storage.persist()`, auto-backup scheduling to JSON, and manual export/import UIs are not fully present in the explored components.
-*   **Zoom Marketplace Submission:** Final compliance checks and submission documentation.
 
 ---
 

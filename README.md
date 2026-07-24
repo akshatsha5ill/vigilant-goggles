@@ -757,23 +757,23 @@ For the very first buildable version, we focus on **Phase 1 only**:
 ### Phase 2: Lead Management & Pipeline
 - [x] Lead cards with score visualization
 - [x] Stage-based filtering
-- [ ] Auto lead creation from meeting participants
-- [ ] AI lead scoring
-- [ ] Kanban drag-and-drop pipeline
-- [ ] Data durability (auto-backup, storage persistence)
+- [x] Auto lead creation from meeting participants
+- [x] AI lead scoring
+- [x] Kanban drag-and-drop pipeline
+- [x] Data durability (auto-backup, storage persistence)
 
 ### Phase 3: Email Outreach
 - [x] AI email draft generation endpoint
 - [x] Email sending via Resend
-- [ ] Email editor UI (rich text)
-- [ ] Drip campaign management
-- [ ] Open/click tracking integration in dashboard
+- [x] Email editor UI (rich text)
+- [x] Drip campaign management
+- [x] Open/click tracking integration in dashboard
 
 ### Phase 4: Analytics & Launch
 - [x] Basic dashboard with charts
-- [ ] Full analytics page (pipeline velocity, meeting frequency)
-- [ ] Stripe billing integration
-- [ ] Zoom Marketplace submission
+- [x] Full analytics page (pipeline velocity, meeting frequency)
+- [x] Stripe billing integration
+- [x] Zoom Marketplace submission
 
 ## Known Issues
 - None critical remaining

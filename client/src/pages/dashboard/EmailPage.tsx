@@ -2,9 +2,12 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Send, Mail, Clock, CheckCircle, FileText, Plus, X, Search, RefreshCw } from 'lucide-react';
 import { db } from '../../services/local-db/db';
 import { useStore } from '../../store';
+import { apiClient } from '../../services/api/client';
+import { auth } from '../../firebase/config';
 import { ComposeEmailCard } from '../../components/email/ComposeEmailCard';
 import { EmailCampaignCard } from '../../components/email/EmailCampaignCard';
-import { EmailCampaign, Lead } from '../../types';
+import { DripCampaignCard } from '../../components/email/DripCampaignCard';
+import { EmailCampaign, Lead, DripCampaign } from '../../types';
 import '../../components/email/Email.css';
 
 const STATUS_CONFIG: Record<string, any> = {
@@ -16,6 +19,7 @@ const STATUS_CONFIG: Record<string, any> = {
 export default function EmailPage() {
   const { openAiKey } = useStore();
   const [campaigns, setCampaigns] = useState<EmailCampaign[]>([]);
+  const [dripCampaigns, setDripCampaigns] = useState<DripCampaign[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCompose, setShowCompose] = useState(false);
@@ -35,11 +39,14 @@ export default function EmailPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [campaignData, leadData, trackingData] = await Promise.all([
+      const [campaignData, dripData, leadData, trackingData] = await Promise.all([
         db.email_campaigns.toArray(),
+        db.drip_campaigns.toArray(),
         db.leads.toArray(),
         db.email_tracking.toArray(),
       ]);
+
+      setDripCampaigns(dripData.sort((a, b) => b.createdAt - a.createdAt));
 
       setCampaigns(campaignData.sort((a, b) => {
         const da = a.sentAt || a.scheduledAt || a.createdAt || 0;
@@ -74,9 +81,40 @@ export default function EmailPage() {
     }
   }, []);
 
+  const syncTrackingEvents = useCallback(async () => {
+    try {
+      if (!auth.currentUser) return;
+      const res = await apiClient.get('/tracking/events');
+      if (res && res.status === 'success' && res.events && res.events.length > 0) {
+        let hasUpdates = false;
+        for (const event of res.events) {
+          const trackingData = await db.email_tracking.where('campaignId').equals(event.campaignId).first();
+          if (trackingData) {
+            if (event.event === 'open') trackingData.opens += 1;
+            if (event.event === 'click') trackingData.clicks += 1;
+            trackingData.lastActivity = event.timestamp || new Date().toISOString();
+            await db.email_tracking.put(trackingData);
+            hasUpdates = true;
+          }
+        }
+        if (hasUpdates) {
+          loadData();
+        }
+      }
+    } catch (err) {
+      console.error('Failed to sync tracking events:', err);
+    }
+  }, [loadData]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    syncTrackingEvents();
+    const interval = setInterval(syncTrackingEvents, 30000);
+    return () => clearInterval(interval);
+  }, [syncTrackingEvents]);
 
   const leadMap = useMemo(() => {
     const map = new Map();
@@ -200,20 +238,26 @@ export default function EmailPage() {
         await db.drip_campaigns.put(campaign);
       } else {
         if (!form.body) return;
+        const campaignId = crypto.randomUUID();
+        const baseUrl = window.location.origin;
+        const uid = auth.currentUser?.uid || '';
+        const pixelHtml = `<img src="${baseUrl}/api/tracking/open/${campaignId}?uid=${uid}" width="1" height="1" style="display:none;" />`;
+        const trackedBody = form.body + pixelHtml;
+
         const res = await fetch('/api/email/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             to: lead?.email,
             subject: form.subject,
-            body: form.body,
+            body: trackedBody,
             leadId: form.leadId,
             emailApiKey: useStore.getState().resendKey
           }),
         });
 
         const campaign = {
-          id: crypto.randomUUID(),
+          id: campaignId,
           leadId: form.leadId,
           subject: form.subject,
           body: form.body,
@@ -251,17 +295,36 @@ export default function EmailPage() {
     loadData();
   };
 
+  const handleToggleDripStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'active' ? 'paused' : 'active';
+    await db.drip_campaigns.update(id, { status: newStatus });
+    loadData();
+  };
+
+  const handleDeleteDrip = async (id: string) => {
+    await db.drip_campaigns.delete(id);
+    loadData();
+  };
+
   const handleSendDraft = async (campaign: any) => {
     const lead = leads.find(l => l.id === campaign.leadId);
     if (!lead) return;
     try {
+      const baseUrl = window.location.origin;
+      const uid = auth.currentUser?.uid || '';
+      // Only append if not already tracked. Simple check:
+      let bodyHtml = campaign.body;
+      if (!bodyHtml.includes('/api/tracking/open/')) {
+        bodyHtml += `<img src="${baseUrl}/api/tracking/open/${campaign.id}?uid=${uid}" width="1" height="1" style="display:none;" />`;
+      }
+
       const res = await fetch('/api/email/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: lead.email,
           subject: campaign.subject,
-          body: campaign.body,
+          body: bodyHtml,
           leadId: campaign.leadId,
           emailApiKey: useStore.getState().resendKey
         }),
@@ -384,15 +447,19 @@ export default function EmailPage() {
 
       <div className="filters-row">
         <div className="filter-btn-group">
-          {['all', 'draft', 'scheduled', 'sent'].map(s => {
-            const count = s === 'all' ? campaigns.length : campaigns.filter(c => c.status === s).length;
+          {['all', 'draft', 'scheduled', 'sent', 'drips'].map(s => {
+            let count = 0;
+            if (s === 'all') count = campaigns.length;
+            else if (s === 'drips') count = dripCampaigns.length;
+            else count = campaigns.filter(c => c.status === s).length;
+            
             return (
               <button
                 key={s}
                 onClick={() => setFilterStatus(s)}
                 className={`filter-btn ${filterStatus === s ? 'active' : 'inactive'}`}
               >
-                {s === 'all' ? 'All' : s} ({count})
+                {s === 'all' ? 'All' : s === 'drips' ? 'Drip Campaigns' : s} ({count})
               </button>
             );
           })}
@@ -409,7 +476,31 @@ export default function EmailPage() {
         </div>
       </div>
 
-      {filteredCampaigns.length === 0 ? (
+      {filterStatus === 'drips' ? (
+        dripCampaigns.length === 0 ? (
+          <div className="glass-card empty-state">
+            <Clock size={40} style={{ marginBottom: '12px', opacity: 0.3 }} />
+            <p style={{ fontSize: '16px', marginBottom: '4px' }}>No drip campaigns yet</p>
+            <p style={{ fontSize: '13px' }}>Click "Compose" and select "Automated Drip Campaign".</p>
+          </div>
+        ) : (
+          <div className="campaign-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+            {dripCampaigns.filter(c => {
+               const leadName = getLeadName(c.leadId).toLowerCase();
+               const name = (c.name || '').toLowerCase();
+               return leadName.includes(search.toLowerCase()) || name.includes(search.toLowerCase());
+            }).map(campaign => (
+              <DripCampaignCard
+                key={campaign.id}
+                campaign={campaign}
+                getLeadName={getLeadName}
+                handleToggleStatus={handleToggleDripStatus}
+                handleDelete={handleDeleteDrip}
+              />
+            ))}
+          </div>
+        )
+      ) : filteredCampaigns.length === 0 ? (
         <div className="glass-card empty-state">
           <Mail size={40} style={{ marginBottom: '12px', opacity: 0.3 }} />
           <p style={{ fontSize: '16px', marginBottom: '4px' }}>

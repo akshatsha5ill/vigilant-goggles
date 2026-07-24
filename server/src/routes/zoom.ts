@@ -123,8 +123,61 @@ router.post('/webhook', (req: Request, res: Response, next: express.NextFunction
       }
       break;
     }
+    case 'meeting.participant_joined': {
+      const meetingId = payload?.object?.id;
+      const participant = payload?.object?.participant;
+      if (meetingId && participant) {
+        const key = `participants:${meetingId}`;
+        const existing = bufferService.get(key) || { participants: [] };
+        if (!existing.participants.find((p: any) => p.user_id === participant.user_id || p.user_name === participant.user_name)) {
+          existing.participants.push(participant);
+          bufferService.store(key, existing);
+        }
+
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`meeting:${meetingId}`).emit('participant_joined', { meetingId, participant });
+          io.emit('participant_joined', { meetingId, participant });
+        }
+      }
+      break;
+    }
   }
 
+  return res.status(200).json({ status: 'ok' });
+});
+
+router.post('/deauth', (req: Request, res: Response, next: express.NextFunction): any => {
+  const { payload } = req.body;
+  const secret = config.zoom.webhookSecretToken;
+
+  if (!secret) {
+     return next(new AppError('Server configuration error', 500));
+  }
+
+  const zoomSignature = req.headers['x-zm-signature'] as string;
+  const zoomTimestamp = req.headers['x-zm-request-timestamp'] as string;
+
+  if (!zoomSignature || !zoomTimestamp) {
+    return next(new AppError('Unauthorized: Missing signature', 401));
+  }
+
+  const message = `v0:${zoomTimestamp}:${JSON.stringify(req.body)}`;
+  const hashForVerify = crypto.createHmac('sha256', secret).update(message).digest('hex');
+  const signature = `v0=${hashForVerify}`;
+
+  const bufSig = Buffer.from(signature);
+  const bufZoom = Buffer.from(zoomSignature);
+
+  if (bufSig.length !== bufZoom.length || !crypto.timingSafeEqual(bufSig, bufZoom)) {
+    return next(new AppError('Unauthorized: Invalid signature', 401));
+  }
+
+  const userId = payload?.user_id;
+  const accountId = payload?.account_id;
+  
+  console.log(`Deauth event received for user ${userId}, account ${accountId}`);
+  
   return res.status(200).json({ status: 'ok' });
 });
 
@@ -170,11 +223,13 @@ router.get('/buffer/:meetingId', verifyAuth, (req: Request, res: Response) => {
   const transcript = bufferService.get(`transcript:${meetingId}`);
   const notes = bufferService.get(`notes:${meetingId}`);
   const meetingData = bufferService.get(`meeting:${meetingId}`);
+  const participants = bufferService.get(`participants:${meetingId}`);
 
   res.status(200).json({
     transcript: transcript || null,
     notes: notes || null,
     meeting: meetingData || null,
+    participants: participants || null,
   });
 });
 
@@ -183,6 +238,7 @@ router.delete('/buffer/:meetingId', verifyAuth, (req: Request, res: Response) =>
   bufferService.buffer.delete(`transcript:${meetingId}`);
   bufferService.buffer.delete(`notes:${meetingId}`);
   bufferService.buffer.delete(`meeting:${meetingId}`);
+  bufferService.buffer.delete(`participants:${meetingId}`);
   res.status(200).json({ status: 'cleared' });
 });
 

@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { db } from '../../services/local-db/db';
 import { VirtuosoGrid } from 'react-virtuoso';
 import { Lead } from '../../types';
+import { scoreLead } from '../../services/ai/ai-service';
+import { useStore } from '../../store';
+import { Loader2 } from 'lucide-react';
 
 const stages = ['Discovery', 'Demo', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost'];
 
@@ -10,6 +13,8 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [scoringId, setScoringId] = useState<string | null>(null);
+  const { openAiKey, anthropicKey, geminiKey, setError } = useStore();
 
   useEffect(() => {
     const fetchLeads = async () => {
@@ -35,6 +40,42 @@ export default function LeadsPage() {
     if (score >= 80) return 'var(--success)';
     if (score >= 50) return 'var(--warning)';
     return 'var(--danger)';
+  };
+
+  const handleScoreLead = async (lead: Lead) => {
+    const apiKey = geminiKey || openAiKey || anthropicKey;
+    const model = geminiKey ? 'gemini' : openAiKey ? 'openai' : 'anthropic';
+
+    if (!apiKey) {
+      setError('Please configure an AI API key in Settings to score leads.');
+      return;
+    }
+
+    try {
+      setScoringId(lead.id);
+      
+      const transcriptData = await db.transcripts.where('meetingId').equals(lead.meetingId).first();
+      if (!transcriptData || !transcriptData.fullText) {
+        throw new Error('No transcript found for this lead.');
+      }
+
+      const res = await scoreLead(
+        transcriptData.fullText,
+        { name: lead.name, company: lead.company, role: lead.role, email: lead.email },
+        apiKey,
+        model
+      );
+
+      const scoreResult = res.data.score;
+      const updatedLead = { ...lead, score: scoreResult.score, reasoning: scoreResult.reasoning };
+      
+      await db.leads.put(updatedLead);
+      setLeads(leads.map(l => l.id === lead.id ? updatedLead : l));
+    } catch (err: any) {
+      setError(err.message || 'Failed to score lead.');
+    } finally {
+      setScoringId(null);
+    }
   };
 
   return (
@@ -92,9 +133,26 @@ export default function LeadsPage() {
                 </div>
               </div>
               <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>{lead.email}</p>
+              
+              {lead.reasoning && (
+                <div style={{ padding: '10px', backgroundColor: 'var(--bg-primary)', borderRadius: '8px', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px', fontStyle: 'italic', borderLeft: `2px solid ${getScoreColor(lead.score)}` }}>
+                  "{lead.reasoning}"
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 500, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{lead.stage}</span>
-                <span className="data-text" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '—'}</span>
+                
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    onClick={() => handleScoreLead(lead)}
+                    disabled={scoringId === lead.id}
+                    style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', cursor: scoringId === lead.id ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    {scoringId === lead.id ? <Loader2 size={12} className="animate-spin" /> : '✨ AI Score'}
+                  </button>
+                  <span className="data-text" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '—'}</span>
+                </div>
               </div>
             </div>
           )}

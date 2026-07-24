@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../../store';
 import { encryptKey, decryptKey } from '../../crypto/key-vault';
 import { db } from '../../services/local-db/db';
+import { requestPersistence, exportAllData, importData, downloadJSON, getStorageUsage } from '../../services/local-db/backup';
 
 export default function SettingsPage() {
   const { setOpenAiKey, setAnthropicKey, setGeminiKey, setResendKey } = useStore();
@@ -13,9 +14,67 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState('');
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
-  const [pendingKeys, setPendingKeys] = useState(null);
+  const [pendingKeys, setPendingKeys] = useState<any>(null);
 
-  const decryptKeys = useCallback(async (encryptedData) => {
+  const [isPersisted, setIsPersisted] = useState(false);
+  const [storageUsage, setStorageUsage] = useState<any>(null);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [importStatus, setImportStatus] = useState('');
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
+
+  useEffect(() => {
+    if (navigator.storage && navigator.storage.persisted) {
+      navigator.storage.persisted().then(setIsPersisted);
+    }
+    getStorageUsage().then(setStorageUsage);
+    setAutoBackupEnabled(localStorage.getItem('dealforge_autobackup') === 'true');
+  }, []);
+
+  const handleRequestPersistence = async () => {
+    const granted = await requestPersistence();
+    setIsPersisted(granted);
+  };
+
+  const handleExport = async () => {
+    setBackupLoading(true);
+    try {
+      const data = await exportAllData();
+      downloadJSON(data);
+    } catch (err) {
+      console.error('Export failed:', err);
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleImport = async (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setBackupLoading(true);
+    setImportStatus('Reading file...');
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      setImportStatus('Importing data...');
+      await importData(data);
+      setImportStatus('Import successful! Refresh to see changes.');
+    } catch (err) {
+      console.error('Import failed:', err);
+      setImportStatus('Import failed. Invalid file.');
+    } finally {
+      setBackupLoading(false);
+      setTimeout(() => setImportStatus(''), 3000);
+    }
+  };
+
+  const toggleAutoBackup = (e: any) => {
+    const val = e.target.checked;
+    setAutoBackupEnabled(val);
+    localStorage.setItem('dealforge_autobackup', val.toString());
+  };
+
+  const decryptKeys = useCallback(async (encryptedData: any) => {
     if (!password) return;
     try {
       if (encryptedData.openAi) {
@@ -215,6 +274,61 @@ export default function SettingsPage() {
               <li>Our servers never see your plaintext API keys</li>
               <li>Lost password = lost keys (we cannot recover them)</li>
             </ul>
+          </div>
+        </div>
+
+        {/* Data Management Section */}
+        <div className="glass-card" style={{ padding: '28px', gridColumn: '1 / -1' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px', color: 'var(--accent-primary)' }}>Data Management & Durability</h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '13px', lineHeight: 1.5 }}>
+            Manage your local database, ensure data persistence, and perform backups. All your data lives in this browser.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '8px' }}>Storage Persistence</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>
+                Status: <span style={{ color: isPersisted ? 'var(--success)' : 'var(--warning)', fontWeight: 600 }}>{isPersisted ? 'Persistent' : 'Temporary'}</span>
+              </p>
+              {!isPersisted && (
+                <button
+                  type="button"
+                  onClick={handleRequestPersistence}
+                  style={{ padding: '8px 16px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}
+                >
+                  Request Persistent Storage
+                </button>
+              )}
+              {storageUsage && (
+                <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '12px' }}>
+                  Storage Used: {(storageUsage.used / 1024 / 1024).toFixed(2)} MB of {(storageUsage.quota / 1024 / 1024).toFixed(2)} MB ({storageUsage.percent}%)
+                </p>
+              )}
+            </div>
+
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '8px' }}>Manual Backup</h3>
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  disabled={backupLoading}
+                  style={{ padding: '8px 16px', backgroundColor: 'var(--accent-primary)', color: 'var(--bg-primary)', border: 'none', borderRadius: '8px', cursor: backupLoading ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600 }}
+                >
+                  {backupLoading ? 'Exporting...' : 'Export JSON Backup'}
+                </button>
+                <label style={{ padding: '8px 16px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '8px', cursor: backupLoading ? 'not-allowed' : 'pointer', fontSize: '13px' }}>
+                  Import JSON
+                  <input type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} disabled={backupLoading} />
+                </label>
+              </div>
+              {importStatus && <p style={{ color: 'var(--success)', fontSize: '13px', marginBottom: '12px' }}>{importStatus}</p>}
+
+              <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input type="checkbox" id="autoBackup" checked={autoBackupEnabled} onChange={toggleAutoBackup} />
+                <label htmlFor="autoBackup" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Enable daily auto-backup download</label>
+              </div>
+            </div>
           </div>
         </div>
       </div>

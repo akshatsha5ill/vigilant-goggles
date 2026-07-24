@@ -48,6 +48,7 @@ export const PipelineCard: React.FC<PipelineCardProps> = ({
   return (
     <div
       className={`pipeline-card ${isDragged ? 'dragging' : ''}`}
+      data-deal-id={deal.id}
       draggable
       onDragStart={(e) => onDragStart(e, deal.id)}
       onDragEnd={onDragEnd}

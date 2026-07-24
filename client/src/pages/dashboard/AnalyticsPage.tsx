@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Video, Users, Mail, BarChart3, ArrowRight } from 'lucide-react';
+import { TrendingUp, Video, Users, Mail, BarChart3, ArrowRight, Zap, Clock, Activity } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { db } from '../../services/local-db/db';
 import { Meeting, Lead, Deal, EmailCampaign } from '../../types';
 
 const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
-import { filterByDate, buildMeetingTrendData, buildPipelineData, buildLeadStageData, buildEmailData } from '../../utils/analytics';
+import { filterByDate, buildMeetingTrendData, buildPipelineData, buildLeadStageData, buildEmailData, calculatePipelineVelocity, buildMeetingFrequencyData } from '../../utils/analytics';
 
 const tooltipStyle = { backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '13px' };
 const axisTick = { fill: 'var(--text-muted)', fontSize: 12 };
@@ -45,9 +45,12 @@ export default function AnalyticsPage() {
   const filteredEmails = filterByDate(emails, timeFilter);
 
   const meetingTrendData = buildMeetingTrendData(filteredMeetings);
+  const meetingFrequencyData = buildMeetingFrequencyData(filteredMeetings, timeFilter);
   const pipelineData = buildPipelineData(filteredDeals);
   const leadStageData = buildLeadStageData(filteredLeads);
   const emailData = buildEmailData(filteredEmails);
+
+  const { velocity, avgSalesCycle } = calculatePipelineVelocity(filteredDeals);
 
   const totalMeetings = filteredMeetings.length;
   const totalLeads = filteredLeads.length;
@@ -56,14 +59,16 @@ export default function AnalyticsPage() {
   const conversionRate = totalLeads > 0 ? ((dealsWithLead.length / totalLeads) * 100).toFixed(1) : 0;
   const pipelineValue = filteredDeals.reduce((sum, d) => sum + (d.value || 0), 0);
 
-  const wonDeals = filteredDeals.filter((d) => d.stage === 'won').length;
+  const wonDeals = filteredDeals.filter((d) => d.stage === 'closed_won').length;
   const dealCount = filteredDeals.length;
 
   const statCards = [
     { label: 'Total Meetings', value: totalMeetings, icon: Video, color: 'var(--accent-primary)' },
-    { label: 'Total Leads', value: totalLeads, icon: Users, color: 'var(--success)' },
+    { label: 'Pipeline Velocity', value: `$${velocity.toFixed(0)}/day`, icon: Zap, color: '#8b5cf6' },
     { label: 'Conversion Rate', value: `${conversionRate}%`, icon: TrendingUp, color: 'var(--warning)' },
     { label: 'Pipeline Value', value: `$${pipelineValue.toLocaleString()}`, icon: BarChart3, color: 'var(--danger)' },
+    { label: 'Total Leads', value: totalLeads, icon: Users, color: 'var(--success)' },
+    { label: 'Avg Sales Cycle', value: `${avgSalesCycle.toFixed(1)} days`, icon: Clock, color: '#06b6d4' },
   ];
 
   const funnelSteps = [
@@ -114,6 +119,19 @@ export default function AnalyticsPage() {
             <div className="data-text" style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)' }}>{value}</div>
           </div>
         ))}
+      </div>
+
+      <div className="glass-card" style={{ padding: '24px', marginBottom: '30px' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '20px', color: 'var(--text-secondary)' }}>Meeting Frequency</h3>
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={meetingFrequencyData}>
+            <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+            <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
+            <YAxis tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} />
+            <Tooltip contentStyle={tooltipStyle} />
+            <Line type="monotone" dataKey="count" stroke="var(--accent-primary)" strokeWidth={3} dot={{ r: 4, fill: 'var(--bg-primary)', strokeWidth: 2 }} activeDot={{ r: 6 }} />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '30px' }}>

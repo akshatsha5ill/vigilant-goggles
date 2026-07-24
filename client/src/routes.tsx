@@ -17,6 +17,10 @@ const PipelinePage = lazy(() => import('./pages/dashboard/PipelinePage'));
 const EmailPage = lazy(() => import('./pages/dashboard/EmailPage'));
 const BillingPage = lazy(() => import('./pages/dashboard/BillingPage'));
 
+const PrivacyPolicy = lazy(() => import('./pages/landing/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./pages/landing/TermsOfService'));
+const Support = lazy(() => import('./pages/landing/Support'));
+
 const TranscriptionView = lazy(() => import('./pages/zoom-panel/TranscriptionView'));
 const SuggestionsView = lazy(() => import('./pages/zoom-panel/SuggestionsView'));
 const NotesView = lazy(() => import('./pages/zoom-panel/NotesView'));
@@ -32,6 +36,9 @@ export const router = createBrowserRouter([
     path: '/login',
     element: <LoginPage />,
   },
+  { path: '/privacy', element: <Suspense fallback={<SuspenseFallback />}><PrivacyPolicy /></Suspense> },
+  { path: '/terms', element: <Suspense fallback={<SuspenseFallback />}><TermsOfService /></Suspense> },
+  { path: '/support', element: <Suspense fallback={<SuspenseFallback />}><Support /></Suspense> },
   {
     path: '/',
     element: (

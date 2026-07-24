@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '../../store';
 import { CreditCard, ExternalLink, Check } from 'lucide-react';
+import { apiClient } from '../../services/api/client';
 
 const plans = [
   { id: 'starter', name: 'Starter', price: '$29/mo', meetings: '50 meetings/mo', features: ['AI Meeting Summaries', 'Basic CRM', 'Email Tracking', '5 GB Storage'] },
@@ -11,17 +12,26 @@ const plans = [
 export default function BillingPage() {
   const { user } = useStore();
   const [loading, setLoading] = useState(false);
-  const [currentPlan, setCurrentPlan] = useState(null);
+  const [currentPlan, setCurrentPlan] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchPlan = async () => {
+      try {
+        const data = await apiClient.get('/billing/status');
+        setCurrentPlan(data.plan);
+      } catch (err) {
+        console.error('Failed to fetch plan:', err);
+      }
+    };
+    if (user) {
+      fetchPlan();
+    }
+  }, [user]);
 
   const handleSubscribe = async (planId) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/billing/create-checkout-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.accessToken}` },
-        body: JSON.stringify({ plan: planId }),
-      });
-      const data = await res.json();
+      const data = await apiClient.post('/billing/create-checkout-session', { plan: planId });
       if (data.url) {
         window.location.href = data.url;
       }
@@ -35,11 +45,7 @@ export default function BillingPage() {
   const handleManage = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/billing/create-portal-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.accessToken}` },
-      });
-      const data = await res.json();
+      const data = await apiClient.post('/billing/create-portal-session');
       if (data.url) {
         window.location.href = data.url;
       }

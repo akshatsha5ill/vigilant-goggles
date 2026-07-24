@@ -9,7 +9,7 @@ interface PipelineColumnProps {
   draggedId: string | null;
   onDragOver: (e: React.DragEvent, stageId: string) => void;
   onDragLeave: () => void;
-  onDrop: (e: React.DragEvent, stageId: string) => void;
+  onDrop: (e: React.DragEvent, stageId: string, targetDealId?: string) => void;
   onDragStart: (e: React.DragEvent, dealId: string) => void;
   onDragEnd: () => void;
   onMove: (dealId: string, direction: 'forward' | 'backward') => void;
@@ -37,7 +37,11 @@ export const PipelineColumn: React.FC<PipelineColumnProps> = ({
       style={{ borderColor: isDragOver ? stage.color : undefined }}
       onDragOver={(e) => onDragOver(e, stage.id)}
       onDragLeave={onDragLeave}
-      onDrop={(e) => onDrop(e, stage.id)}
+      onDrop={(e) => {
+        const cardNode = (e.target as HTMLElement).closest('.pipeline-card');
+        const targetDealId = cardNode ? cardNode.getAttribute('data-deal-id') : undefined;
+        onDrop(e, stage.id, targetDealId ?? undefined);
+      }}
     >
       <div className="column-header">
         <div>

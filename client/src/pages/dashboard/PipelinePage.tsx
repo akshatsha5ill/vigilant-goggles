@@ -23,7 +23,7 @@ export default function PipelinePage() {
   }, [loadDeals]);
 
   const dealsByStage = STAGES.reduce((acc: any, stage) => {
-    acc[stage.id] = deals.filter((d) => d.stage === stage.id);
+    acc[stage.id] = deals.filter((d) => d.stage === stage.id).sort((a, b) => (a.order || 0) - (b.order || 0));
     return acc;
   }, {});
 
@@ -55,16 +55,60 @@ export default function PipelinePage() {
     setDragOverStage(null);
   };
 
-  const handleDrop = async (e: React.DragEvent, stageId: string) => {
+  const handleDrop = async (e: React.DragEvent, stageId: string, targetDealId?: string) => {
     e.preventDefault();
     setDragOverStage(null);
     const dealId = e.dataTransfer.getData('text/plain');
-    if (!dealId) return;
+    if (!dealId || dealId === targetDealId) return;
+
     const deal = deals.find((d) => d.id === dealId);
-    if (deal && deal.stage !== stageId) {
-      await dealsDB.put({ ...deal, stage: stageId });
+    if (!deal) return;
+
+    const updatedDeals = [...deals];
+    const dealIndex = updatedDeals.findIndex(d => d.id === dealId);
+    
+    // Update stage and timestamp
+    updatedDeals[dealIndex] = { ...deal, stage: stageId, updatedAt: new Date().toISOString() };
+    
+    // Sort items in target stage excluding the dragged item
+    const stageDeals = updatedDeals
+      .filter(d => d.stage === stageId && d.id !== dealId)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    // Insert dragged item at correct position
+    if (targetDealId) {
+      const targetIndex = stageDeals.findIndex(d => d.id === targetDealId);
+      if (targetIndex !== -1) {
+        stageDeals.splice(targetIndex, 0, updatedDeals[dealIndex]);
+      } else {
+        stageDeals.push(updatedDeals[dealIndex]);
+      }
+    } else {
+      stageDeals.push(updatedDeals[dealIndex]);
+    }
+    
+    // Assign new orders
+    const dealsToSave: Deal[] = [];
+    stageDeals.forEach((d, i) => {
+      if (d.order !== i || d.id === dealId) {
+        d.order = i;
+        dealsToSave.push(d);
+      }
+    });
+
+    // Optimistic update
+    const finalDeals = updatedDeals.map(d => {
+      const saved = dealsToSave.find(s => s.id === d.id);
+      return saved ? saved : d;
+    });
+    setDeals(finalDeals);
+
+    // Persist changes
+    if (dealsToSave.length > 0) {
+      await dealsDB.bulkPut(dealsToSave);
       loadDeals();
     }
+    
     setDraggedId(null);
   };
 
@@ -75,7 +119,7 @@ export default function PipelinePage() {
     const idx = stageIds.indexOf(deal.stage);
     const newIdx = direction === 'forward' ? idx + 1 : idx - 1;
     if (newIdx < 0 || newIdx >= stageIds.length) return;
-    await dealsDB.put({ ...deal, stage: stageIds[newIdx] });
+    await dealsDB.put({ ...deal, stage: stageIds[newIdx], updatedAt: new Date().toISOString() });
     loadDeals();
   };
 
@@ -85,6 +129,7 @@ export default function PipelinePage() {
   };
 
   const handleSubmitModal = async (form: DealFormData) => {
+    const stageCount = deals.filter(d => d.stage === form.stage).length;
     await dealsDB.put({
       id: crypto.randomUUID(),
       leadId: '',
@@ -93,7 +138,10 @@ export default function PipelinePage() {
       value: parseFloat(form.value) || 0,
       probability: parseInt(form.probability) || 0,
       expectedClose: form.expectedClose || null,
+      notes: [],
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      order: stageCount,
     });
     setShowModal(false);
     loadDeals();

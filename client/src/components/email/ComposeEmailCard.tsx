@@ -1,5 +1,6 @@
 import React from 'react';
 import { Send, Sparkles, FileText } from 'lucide-react';
+import { RichTextEditor } from '../common';
 import './Email.css';
 
 interface ComposeEmailProps {
@@ -107,11 +108,10 @@ export const ComposeEmailCard: React.FC<ComposeEmailProps> = ({
       {form.type !== 'drip_campaign' && (
         <div style={{ marginBottom: '20px' }}>
           <label className="form-label">Body</label>
-          <textarea
+          <RichTextEditor
             value={form.body}
-            onChange={(e) => setForm((prev: any) => ({ ...prev, body: e.target.value }))}
+            onChange={(val) => setForm((prev: any) => ({ ...prev, body: val }))}
             placeholder="Write your email content..."
-            className="textarea-style"
           />
         </div>
       )}

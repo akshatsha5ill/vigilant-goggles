@@ -71,12 +71,46 @@ class LeadAutomationService {
     }
   };
 
+  handleParticipantJoined = async (data: { meetingId: string, participant: any }) => {
+    const { meetingId, participant } = data;
+    if (!meetingId || !participant) return;
+
+    try {
+      const existingLeads = await db.leads.where('meetingId').equals(meetingId).toArray();
+      const alreadyExists = existingLeads.find(l => 
+        (participant.email && l.email === participant.email) || 
+        (participant.user_name && l.name === participant.user_name)
+      );
+
+      if (alreadyExists) return;
+
+      const newLead = {
+        id: `lead_${meetingId}_${participant.user_id || Date.now()}`,
+        meetingId: meetingId,
+        name: participant.user_name || 'Unknown Participant',
+        email: participant.email || '',
+        company: 'Unknown',
+        role: 'Meeting Participant',
+        score: 50,
+        stage: 'Lead Identified',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      await db.leads.add(newLead);
+      console.log(`Auto-created lead from participant: ${newLead.name}`);
+    } catch (err) {
+      console.error('Failed to auto-create lead from participant:', err);
+    }
+  };
+
   start() {
     if (this.isSubscribed) return;
     
     const socket = getSharedSocket();
     if (socket) {
       socket.on('meeting_ended', this.handleMeetingEnded);
+      socket.on('participant_joined', this.handleParticipantJoined);
       this.isSubscribed = true;
       console.log('Lead Automation Service started in background.');
     } else {
@@ -90,6 +124,7 @@ class LeadAutomationService {
     const socket = getSharedSocket();
     if (socket) {
       socket.off('meeting_ended', this.handleMeetingEnded);
+      socket.off('participant_joined', this.handleParticipantJoined);
     }
     this.isSubscribed = false;
     console.log('Lead Automation Service stopped.');

@@ -1,6 +1,7 @@
 import express from 'express';
 import Stripe from 'stripe';
 import { verifyAuth } from '../middleware/auth.js';
+import admin from '../services/firebase-admin.js';
 import { config } from '../config.js';
 import { z } from 'zod';
 import { validateRequest } from 'zod-express-middleware';
@@ -37,6 +38,7 @@ router.post('/create-checkout-session', verifyAuth, validateRequest({ body: chec
       success_url: `${config.clientUrl}/settings?billing=success`,
       cancel_url: `${config.clientUrl}/settings?billing=cancelled`,
       metadata: { userId: req.user.uid, plan },
+      customer_email: req.user.email,
     });
 
     res.status(200).json({ status: 'success', url: session.url });
@@ -51,7 +53,15 @@ router.post('/create-portal-session', verifyAuth, async (req: any, res: express.
       throw new AppError('Billing is not configured.', 503);
     }
 
+    const userDoc = await admin.firestore().collection('users').doc(req.user.uid).get();
+    const customerId = userDoc.data()?.subscription?.customerId;
+
+    if (!customerId) {
+       throw new AppError('No active subscription found to manage.', 400);
+    }
+
     const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
       return_url: `${config.clientUrl}/settings`,
     });
 
@@ -61,7 +71,21 @@ router.post('/create-portal-session', verifyAuth, async (req: any, res: express.
   }
 });
 
-router.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+router.get('/status', verifyAuth, async (req: any, res: express.Response, next: express.NextFunction) => {
+  try {
+    const userDoc = await admin.firestore().collection('users').doc(req.user.uid).get();
+    const data = userDoc.data();
+    if (data?.subscription?.status === 'active') {
+      res.json({ status: 'success', plan: data.subscription.plan });
+    } else {
+      res.json({ status: 'success', plan: 'starter' });
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
   const endpointSecret = config.stripe.webhookSecret;
 
@@ -80,11 +104,31 @@ router.post('/webhook', express.raw({ type: 'application/json' }), (req, res) =>
     const session = event.data.object;
     const { userId, plan } = (session as any).metadata;
     log.info(`Subscription activated`, { userId, plan });
+    
+    await admin.firestore().collection('users').doc(userId).set({
+      subscription: {
+        plan,
+        status: 'active',
+        customerId: (session as any).customer,
+        subscriptionId: (session as any).subscription,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }
+    }, { merge: true });
   }
 
   if (event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object;
     log.info(`Subscription cancelled`, { subscriptionId: (subscription as any).id });
+    
+    const usersRef = admin.firestore().collection('users');
+    const snapshot = await usersRef.where('subscription.subscriptionId', '==', (subscription as any).id).get();
+    if (!snapshot.empty) {
+      const batch = admin.firestore().batch();
+      snapshot.forEach(doc => {
+        batch.set(doc.ref, { subscription: { status: 'cancelled' } }, { merge: true });
+      });
+      await batch.commit();
+    }
   }
 
   res.status(200).json({ received: true });

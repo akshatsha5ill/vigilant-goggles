@@ -2,32 +2,39 @@
   "name": "server",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.ts",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node src/index.js",
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
     "test": "vitest run"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.5",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1",
+    "express": "^4.21.0",
     "express-rate-limit": "^8.6.0",
     "firebase-admin": "^14.2.0",
     "helmet": "^8.3.0",
     "openai": "^6.48.0",
     "resend": "^6.17.2",
     "socket.io": "^4.8.3",
-    "stripe": "^22.3.2"
+    "@google/genai": "^0.2.0",
+    "stripe": "^22.3.2",
+    "xss": "^1.0.15",
+    "zod": "^3.22.4",
+    "zod-express-middleware": "^1.4.0"
   },
   "devDependencies": {
     "nock": "^14.0.16",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "typescript": "^5.0.0",
+    "tsx": "^4.7.1"
   }
 }

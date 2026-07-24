@@ -1,0 +1,59 @@
+# DealForge Architectural & Coding Rules
+
+These rules strictly define the tech stack, architecture, and coding conventions for DealForge. All future AI assistance and refactoring must adhere to these constraints to maintain project integrity.
+
+## 1. Tech Stack Overview
+
+### Frontend (Client Workspace)
+- **Framework:** React 19 with Vite 8.
+- **Routing:** React Router v7.
+- **State Management:** Zustand (no Redux).
+- **Local Database:** Dexie.js (wrapper for IndexedDB).
+- **Styling:** Vanilla CSS utilizing custom CSS variables (no Tailwind, no heavy UI frameworks).
+- **Icons & Visuals:** Lucide-React and Recharts.
+- **Real-Time:** Socket.io-client.
+
+### Backend (Server Workspace)
+- **Framework:** Node.js with Express 5.
+- **Execution:** TSX (TypeScript Execute) for dev, `tsc` for production build.
+- **Real-Time:** Socket.io.
+- **Integrations:** Firebase Admin SDK (Auth verification), OpenAI SDK, Anthropic SDK, Google GenAI SDK, Resend (Email), Stripe.
+
+---
+
+## 2. Architectural Patterns
+
+### The "Stateless Server" Privacy Mandate
+- **Core Principle:** The backend server acts ONLY as a relay. It must **never** permanently store sensitive user data (transcripts, meeting notes, AI analyses, lead data, or pipeline deals).
+- **Data Persistence:** All business data must be persisted client-side in the user's browser using Dexie (IndexedDB).
+- **Temporary Buffering:** The server uses `buffer-service.ts` to temporarily hold meeting data (24-hour TTL) for real-time Zoom panel integration if the web dashboard is closed. This buffer is strictly ephemeral.
+
+### Bring Your Own Key (BYOK) Security
+- **API Keys:** Users provide their own AI API keys.
+- **Encryption:** Keys are encrypted client-side using PBKDF2 (AES-GCM) before being stored. The backend NEVER stores plaintext or encrypted keys.
+- **Transit:** Keys are decrypted on the client and sent to the backend per-request over HTTPS in the request body. 
+
+### Separation of Browser Contexts
+- The Zoom In-Meeting Panel (iframe) and the Web Dashboard run in entirely separate browser contexts and do not share IndexedDB. The panel must remain purely a "dumb view" that reads and writes through the WebSocket relay.
+
+---
+
+## 3. Coding Conventions
+
+### TypeScript & Type Safety
+- **Strict Mode:** The project enforces `"strict": true` in both client and server `tsconfig.json`.
+- **No Implicit Any:** The use of implicit or explicit `any` is strictly prohibited.
+- **Shared Domain Models:** All domain entities (`Meeting`, `Lead`, `Transcript`, `Deal`, `EmailCampaign`) must be explicitly typed using interfaces exported from the `types/index.ts` files.
+- **Dexie Typing:** Dexie database classes must use the generic `Table<T>` wrapper for strict type safety on all local database queries.
+
+### Backend Routing & Logic
+- **Express Handlers:** All route handlers must use explicit type definitions (`Request`, `Response`, `NextFunction`) from Express.
+- **Controller/Service Separation:** Route definitions should primarily handle HTTP concerns (request parsing, response formatting) and delegate core business logic to dedicated files in the `services/` directory.
+
+### Asynchronous Logic
+- **Flattened Async Flows:** Avoid deeply nested `try/catch` blocks or deeply nested loops. Extract complex inner loop logic into separate async helper functions.
+- **Interval Safety:** When using `setInterval` with async functions, always use a `useRef` boolean flag (`isRunning`) or equivalent locking mechanism to prevent slow overlapping executions.
+
+### Error Handling
+- Never leak raw stack traces to the client.
+- Catch domain-specific errors (like invalid API keys) gracefully and return standard `4xx` HTTP codes with clear, user-facing error messages in JSON format.
